@@ -31,6 +31,12 @@ class AUnknownSteampunkCharacter : public APaperCharacter
 
 	UTextRenderComponent* TextComponent;
 	virtual void Tick(float DeltaSeconds) override;
+  
+	float CurrentVel;
+	UPROPERTY(EditAnywhere,Category = "Soaring");
+	bool QKey = 0;
+	float Gravity{0.4};
+	//float newVelocity;
 protected:
 	// The animation to play while running around
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Animations)
@@ -47,6 +53,8 @@ protected:
 	void MoveRight(float Value);
 
 	void UpdateCharacter();
+ void Soaring();
+	void StopSoaring();
 
 
 

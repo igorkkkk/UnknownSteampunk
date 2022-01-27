@@ -54,7 +54,7 @@ AUnknownSteampunkCharacter::AUnknownSteampunkCharacter()
 	GetCharacterMovement()->JumpZVelocity = 1000.f;
 	GetCharacterMovement()->GroundFriction = 3.0f;
 	GetCharacterMovement()->MaxWalkSpeed = 600.0f;
-	GetCharacterMovement()->MaxFlySpeed = 600.0f;
+	GetCharacterMovement()->MaxFlySpeed = 6000.0f;
 
 	// Lock character motion onto the XZ plane, so the character can't move in or out of the screen
 	GetCharacterMovement()->bConstrainToPlane = true;
@@ -94,8 +94,10 @@ void AUnknownSteampunkCharacter::UpdateAnimation()
 
 void AUnknownSteampunkCharacter::Tick(float DeltaSeconds)
 {
-	Super::Tick(DeltaSeconds);
+
 	
+	Super::Tick(DeltaSeconds);
+	////AddActorLocalOffset(FVector(0.f,0.f,1.0f),true);
 	UpdateCharacter();	
 }
 
@@ -109,15 +111,44 @@ void AUnknownSteampunkCharacter::SetupPlayerInputComponent(class UInputComponent
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
 	PlayerInputComponent->BindAxis("MoveRight", this, &AUnknownSteampunkCharacter::MoveRight);
-
-	
+	//PlayerInputComponent->BindAction("Flying", IE_Pressed, this, &ACharacter::StopJumping);
+	PlayerInputComponent->BindAction("Soaring",IE_Pressed,this,&AUnknownSteampunkCharacter::Soaring);
+	//FInputAxisHandlerSignature::TUObjectMethodDelegate< UserClass >::FMethodPtr
+	PlayerInputComponent->BindAction("Soaring",IE_Released,this,&AUnknownSteampunkCharacter::StopSoaring);
+    //PlayerInputComponent->BindKey
 }
 
+ void AUnknownSteampunkCharacter::Soaring()
+{
+	if(GetCharacterMovement()->IsFalling()){
+		QKey = true;
+		//bPressedJump = false;
+		// FVector Vel = GetVelocity();
+		//CurrentVel = Vel.Y;
+		//newVelocity = CurrentVel*acc;
+		
+		
+		//AddActorLocalOffset(FVector(0.f,0.f,1.0f),true);
+		//OnMovementModeChanged()
+	//GetRootComponent()->Set
+	//FVector = Acceleration();
+	//JumpKeyHoldTime = 1000.0f;
+	//AddMovementInput(FVector(1000.0f, 100.0f, 10000.0f));
+	}
+	
+	
+}
+ void AUnknownSteampunkCharacter::StopSoaring()
+{
+	QKey = false;
+	//GetCharacterMovement()->GravityScale = 2;
+}
 void AUnknownSteampunkCharacter::MoveRight(float Value)
 {
 	/*UpdateChar();*/
 
 	// Apply the input to the character motion
+	AddMovementInput(FVector(0.f,0.f,1.f),Value);
 	AddMovementInput(FVector(1.0f, 0.0f, 0.0f), Value);
 }
 
@@ -126,7 +157,14 @@ void AUnknownSteampunkCharacter::UpdateCharacter()
 {
 	// Update animation to match the motion
 	UpdateAnimation();
-
+	if(QKey)
+	{
+		GetCharacterMovement()->GravityScale = Gravity;
+	}
+	else
+	{
+		GetCharacterMovement()->GravityScale = 2;
+	}
 	// Now setup the rotation of the controller based on the direction we are travelling
 	const FVector PlayerVelocity = GetVelocity();	
 	float TravelDirection = PlayerVelocity.X;
@@ -143,3 +181,5 @@ void AUnknownSteampunkCharacter::UpdateCharacter()
 		}
 	}
 }
+
+
