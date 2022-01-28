@@ -120,36 +120,27 @@ void AUnknownSteampunkCharacter::SetupPlayerInputComponent(class UInputComponent
 
  void AUnknownSteampunkCharacter::Soaring()
 {
-	if(GetCharacterMovement()->IsFalling()){
+
 		QKey = true;
-		//bPressedJump = false;
-		// FVector Vel = GetVelocity();
-		//CurrentVel = Vel.Y;
-		//newVelocity = CurrentVel*acc;
-		
-		
-		//AddActorLocalOffset(FVector(0.f,0.f,1.0f),true);
-		//OnMovementModeChanged()
-	//GetRootComponent()->Set
-	//FVector = Acceleration();
-	//JumpKeyHoldTime = 1000.0f;
-	//AddMovementInput(FVector(1000.0f, 100.0f, 10000.0f));
-	}
+
 	
 	
 }
  void AUnknownSteampunkCharacter::StopSoaring()
 {
 	QKey = false;
-	//GetCharacterMovement()->GravityScale = 2;
 }
 void AUnknownSteampunkCharacter::MoveRight(float Value)
 {
 	/*UpdateChar();*/
 
 	// Apply the input to the character motion
-	AddMovementInput(FVector(0.f,0.f,1.f),Value);
-	AddMovementInput(FVector(1.0f, 0.0f, 0.0f), Value);
+	float MoveValue = Value;
+	if(TurnJump)
+	{
+		MoveValue= -MoveValue;
+	}
+	AddMovementInput(FVector(1.0f, 0.0f, 0.0f), MoveValue);
 }
 
 
@@ -157,7 +148,10 @@ void AUnknownSteampunkCharacter::UpdateCharacter()
 {
 	// Update animation to match the motion
 	UpdateAnimation();
-	if(QKey)
+	const FVector PlayerVelocity = GetVelocity();	
+	float FallDirection = PlayerVelocity.Z;
+	//if Q key was pressed nd we falling we can soaring
+	if(QKey&&(FallDirection<0))
 	{
 		GetCharacterMovement()->GravityScale = Gravity;
 	}
@@ -166,7 +160,7 @@ void AUnknownSteampunkCharacter::UpdateCharacter()
 		GetCharacterMovement()->GravityScale = 2;
 	}
 	// Now setup the rotation of the controller based on the direction we are travelling
-	const FVector PlayerVelocity = GetVelocity();	
+	//const FVector PlayerVelocity = GetVelocity();	
 	float TravelDirection = PlayerVelocity.X;
 	// Set the rotation so that the character faces his direction of travel.
 	if (Controller != nullptr)
@@ -180,6 +174,21 @@ void AUnknownSteampunkCharacter::UpdateCharacter()
 			Controller->SetControlRotation(FRotator(0.0f, 0.0f, 0.0f));
 		}
 	}
+	
+    // changing second jump vector
+	if((JumpCurrentCount>1)&&(TravelDirection==0))
+	{
+		if(IsRootComponentCollisionRegistered())
+		{
+			TurnJump = 1;
+		}
+	}
+	//if we hit the floor
+	else if((JumpCurrentCount==0))
+	{
+		TurnJump = 0;
+	}
+	
 }
 
 
