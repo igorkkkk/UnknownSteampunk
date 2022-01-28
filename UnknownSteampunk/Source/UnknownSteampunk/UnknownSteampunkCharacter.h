@@ -35,7 +35,7 @@ class AUnknownSteampunkCharacter : public APaperCharacter
 	float CurrentVel;
 	UPROPERTY(EditAnywhere,Category = "Soaring");
 	bool QKey = 0;
-	float Gravity{0.4};
+	float Gravity{0.2};
 	//float newVelocity;
 protected:
 	// The animation to play while running around
