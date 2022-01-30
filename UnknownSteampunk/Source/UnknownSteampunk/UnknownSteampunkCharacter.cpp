@@ -1,96 +1,94 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UnknownSteampunkCharacter.h"
-#include "PaperFlipbookComponent.h"
-#include "Components/TextRenderComponent.h"
+#include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "GameFramework/Controller.h"
-#include "Camera/CameraComponent.h"
-
-DEFINE_LOG_CATEGORY_STATIC(SideScrollerCharacter, Log, All);
-
-//////////////////////////////////////////////////////////////////////////
-// AUnknownSteampunkCharacter
 
 AUnknownSteampunkCharacter::AUnknownSteampunkCharacter()
 {
-	// Use only Yaw from the controller and ignore the rest of the rotation.
+	// Set size for collision capsule
+	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
+	SetActorEnableCollision(true);
+	// Don't rotate when the controller rotates.
 	bUseControllerRotationPitch = false;
-	bUseControllerRotationYaw = true;
+	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
-
-	// Set the size of our collision capsule.
-	GetCapsuleComponent()->SetCapsuleHalfHeight(96.0f);
-	GetCapsuleComponent()->SetCapsuleRadius(40.0f);
 
 	// Create a camera boom attached to the root (capsule)
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
 	CameraBoom->SetupAttachment(RootComponent);
-	CameraBoom->TargetArmLength = 500.0f;
-	CameraBoom->SocketOffset = FVector(0.0f, 0.0f, 75.0f);
-	CameraBoom->SetUsingAbsoluteRotation(true);
+	CameraBoom->SetUsingAbsoluteRotation(true); // Rotation of the character should not affect rotation of boom
 	CameraBoom->bDoCollisionTest = false;
-	CameraBoom->SetRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
-	
+	CameraBoom->TargetArmLength = 700.f;
+	CameraBoom->SocketOffset = FVector(0.f,0.f,75.f);
+	CameraBoom->SetRelativeRotation(FRotator(0.f,180.f,0.f));
 
-	// Create an orthographic camera (no perspective) and attach it to the boom
+	// Create a camera and attach to boom
 	SideViewCameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("SideViewCamera"));
-	SideViewCameraComponent->ProjectionMode = ECameraProjectionMode::Orthographic;
-	SideViewCameraComponent->OrthoWidth = 2048.0f;
 	SideViewCameraComponent->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
-
-	// Prevent all automatic rotation behavior on the camera, character, and camera component
-	CameraBoom->SetUsingAbsoluteRotation(true);
-	SideViewCameraComponent->bUsePawnControlRotation = false;
-	SideViewCameraComponent->bAutoActivate = true;
-	GetCharacterMovement()->bOrientRotationToMovement = false;
+	SideViewCameraComponent->bUsePawnControlRotation = false; // We don't want the controller rotating the camera
 
 	// Configure character movement
-	GetCharacterMovement()->GravityScale = 2.0f;
+	GetCharacterMovement()->bOrientRotationToMovement = true; // Face in the direction we are moving..
+	GetCharacterMovement()->RotationRate = FRotator(0.0f, 720.0f, 0.0f); // ...at this rotation rate
+	GetCharacterMovement()->GravityScale = 2.f;
 	GetCharacterMovement()->AirControl = 0.80f;
 	GetCharacterMovement()->JumpZVelocity = 1000.f;
-	GetCharacterMovement()->GroundFriction = 3.0f;
-	GetCharacterMovement()->MaxWalkSpeed = 600.0f;
-	GetCharacterMovement()->MaxFlySpeed = 6000.0f;
+	GetCharacterMovement()->GroundFriction = 3.f;
+	GetCharacterMovement()->MaxWalkSpeed = 600.f;
+	GetCharacterMovement()->MaxFlySpeed = 600.f;
+	JumpMaxCount = 2;
 
-	// Lock character motion onto the XZ plane, so the character can't move in or out of the screen
-	GetCharacterMovement()->bConstrainToPlane = true;
-	GetCharacterMovement()->SetPlaneConstraintNormal(FVector(0.0f, -1.0f, 0.0f));
 
-	// Behave like a traditional 2D platformer character, with a flat bottom instead of a curved capsule bottom
-	// Note: This can cause a little floating when going up inclines; you can choose the tradeoff between better
-	// behavior on the edge of a ledge versus inclines by setting this to true or false
-	GetCharacterMovement()->bUseFlatBaseForFloorChecks = true;
-
-     // 	TextComponent = CreateDefaultSubobject<UTextRenderComponent>(TEXT("IncarGear"));
-     // 	TextComponent->SetRelativeScale3D(FVector(3.0f, 3.0f, 3.0f));
-     // 	TextComponent->SetRelativeLocation(FVector(35.0f, 5.0f, 20.0f));
-    	// TextComponent->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
-    	// TextComponent->SetupAttachment(RootComponent);
-
-	// Enable replication on the Sprite component so animations show up when networked
-	GetSprite()->SetIsReplicated(true);
-	bReplicates = true;
+	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
+	// are set in the derived blueprint asset named MyCharacter (to avoid direct content references in C++)
 }
 
 //////////////////////////////////////////////////////////////////////////
-// Animation
+// Input
 
-void AUnknownSteampunkCharacter::UpdateAnimation()
+void AUnknownSteampunkCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
 {
-	const FVector PlayerVelocity = GetVelocity();
-	const float PlayerSpeedSqr = PlayerVelocity.SizeSquared();
+	// set up gameplay key bindings
+	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
+	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
+	PlayerInputComponent->BindAxis("MoveRight", this, &AUnknownSteampunkCharacter::MoveRight);
+	PlayerInputComponent->BindAction("Soaring",IE_Pressed,this,&AUnknownSteampunkCharacter::Soaring);
+	PlayerInputComponent->BindAction("Soaring",IE_Released,this,&AUnknownSteampunkCharacter::StopSoaring);
 
-	// Are we moving or standing still?
-	UPaperFlipbook* DesiredAnimation = (PlayerSpeedSqr > 0.0f) ? RunningAnimation : IdleAnimation;
-	if( GetSprite()->GetFlipbook() != DesiredAnimation 	)
-	{
-		GetSprite()->SetFlipbook(DesiredAnimation);
-	}
 }
+
+void AUnknownSteampunkCharacter::Soaring()
+{
+	QKey = true;
+}
+void AUnknownSteampunkCharacter::StopSoaring()
+{
+	QKey = false;
+}
+void AUnknownSteampunkCharacter::MoveRight(float Value)
+{
+
+	// Apply the input to the character motion
+	float MoveValue = Value;
+	if(TurnJump%2)
+	{
+		MoveValue= -MoveValue;
+	}
+    if(Value)
+    {
+	    AxisMoving = true;
+    }
+	else
+	{
+		AxisMoving = false;
+	}
+	AddMovementInput(FVector(0.0f, -1.0f, 0.0f), MoveValue);
+}
+
 
 void AUnknownSteampunkCharacter::Tick(float DeltaSeconds)
 {
@@ -101,53 +99,8 @@ void AUnknownSteampunkCharacter::Tick(float DeltaSeconds)
 	UpdateCharacter();	
 }
 
-
-//////////////////////////////////////////////////////////////////////////
-// Input
-
-void AUnknownSteampunkCharacter::SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent)
-{
-	// Note: the 'Jump' action and the 'MoveRight' axis are bound to actual keys/buttons/sticks in DefaultInput.ini (editable from Project Settings..Input)
-	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
-	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
-	PlayerInputComponent->BindAxis("MoveRight", this, &AUnknownSteampunkCharacter::MoveRight);
-	//PlayerInputComponent->BindAction("Flying", IE_Pressed, this, &ACharacter::StopJumping);
-	PlayerInputComponent->BindAction("Soaring",IE_Pressed,this,&AUnknownSteampunkCharacter::Soaring);
-	//FInputAxisHandlerSignature::TUObjectMethodDelegate< UserClass >::FMethodPtr
-	PlayerInputComponent->BindAction("Soaring",IE_Released,this,&AUnknownSteampunkCharacter::StopSoaring);
-    //PlayerInputComponent->BindKey
-}
-
- void AUnknownSteampunkCharacter::Soaring()
-{
-
-		QKey = true;
-
-	
-	
-}
- void AUnknownSteampunkCharacter::StopSoaring()
-{
-	QKey = false;
-}
-void AUnknownSteampunkCharacter::MoveRight(float Value)
-{
-	/*UpdateChar();*/
-
-	// Apply the input to the character motion
-	float MoveValue = Value;
-	if(TurnJump)
-	{
-		MoveValue= -MoveValue;
-	}
-	AddMovementInput(FVector(1.0f, 0.0f, 0.0f), MoveValue);
-}
-
-
 void AUnknownSteampunkCharacter::UpdateCharacter()
 {
-	// Update animation to match the motion
-	UpdateAnimation();
 	const FVector PlayerVelocity = GetVelocity();	
 	float FallDirection = PlayerVelocity.Z;
 	//if Q key was pressed nd we falling we can soaring
@@ -159,9 +112,9 @@ void AUnknownSteampunkCharacter::UpdateCharacter()
 	{
 		GetCharacterMovement()->GravityScale = 2;
 	}
+	
 	// Now setup the rotation of the controller based on the direction we are travelling
-	//const FVector PlayerVelocity = GetVelocity();	
-	float TravelDirection = PlayerVelocity.X;
+	float TravelDirection = PlayerVelocity.Y;
 	// Set the rotation so that the character faces his direction of travel.
 	if (Controller != nullptr)
 	{
@@ -175,12 +128,13 @@ void AUnknownSteampunkCharacter::UpdateCharacter()
 		}
 	}
 	
-    // changing second jump vector
-	if((JumpCurrentCount>1)&&(TravelDirection==0))
+	// changing second jump vector
+	if((JumpCurrentCount>1)&&(TravelDirection==0)&&AxisMoving)//TODO
 	{
 		if(IsRootComponentCollisionRegistered())
 		{
-			TurnJump = 1;
+			TurnJump++;  
+			JumpCurrentCount--;
 		}
 	}
 	//if we hit the floor
@@ -188,7 +142,4 @@ void AUnknownSteampunkCharacter::UpdateCharacter()
 	{
 		TurnJump = 0;
 	}
-	
 }
-
-
