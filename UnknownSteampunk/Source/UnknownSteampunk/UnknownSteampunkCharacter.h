@@ -26,6 +26,19 @@ class AUnknownSteampunkCharacter : public ACharacter
 	bool QKey = 0;
 	UPROPERTY(EditAnywhere,Category = "Soaring")
 	double Gravity{0.01};
+
+	//particle system
+	UParticleSystem* UPart;
+	UParticleSystemComponent* LeftLegParticleSystem;
+	UParticleSystemComponent* RightLegParticleSystem;
+
+	
+	UPROPERTY(EditAnywhere, Category = "Audio")
+	USoundBase* SoaringAudioBase;
+	UPROPERTY(EditAnywhere, Category = "Audio")
+	UAudioComponent* SoaringAudioComponent;
+   
+
 protected:
 
 	/** Called for side to side input */
@@ -37,10 +50,12 @@ protected:
 	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;
 	// End of APawn interface
 	void UpdateCharacter();
-
+	
+	void ParticleToggle();
 public:
 	AUnknownSteampunkCharacter();
-
+    virtual void PostInitializeComponents() override;
+	virtual void BeginPlay() override;
 	/** Returns SideViewCameraComponent subobject **/
 	FORCEINLINE class UCameraComponent* GetSideViewCameraComponent() const { return SideViewCameraComponent; }
 	/** Returns CameraBoom subobject **/
